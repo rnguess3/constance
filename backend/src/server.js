@@ -3,6 +3,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import mesureRoutes from './routes/mesureRoutes.js';
+import { gestionnaireErreurs } from './middleware/errorHandler.js';
 
 const app = express();
 
@@ -16,6 +18,13 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'constance-backend' });
 });
+
+app.use('/mesures', mesureRoutes);
+
+// Doit rester le DERNIER app.use() : Express l'identifie comme
+// gestionnaire d'erreurs grâce à sa signature à 4 arguments, et ne
+// l'appelle que pour les erreurs transmises via next(err).
+app.use(gestionnaireErreurs);
 
 const PORT = process.env.PORT || 3001;
 

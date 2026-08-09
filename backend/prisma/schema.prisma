@@ -1,0 +1,75 @@
+// Schéma Prisma de Constance.
+// Prisma utilise ce fichier pour générer :
+//   1. Le client JS/TS typé (npx prisma generate) utilisé dans le code
+//   2. Les migrations SQL (npx prisma migrate dev) appliquées à PostgreSQL
+//
+// Convention adoptée : les champs sont en camelCase côté Prisma/JS (usage
+// idiomatique en JS) mais mappés explicitement vers des colonnes en
+// snake_case côté base de données via @map, pour respecter le modèle de
+// données défini (user_id, valeur_1, date_heure, etc.).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Une mesure peut être une prise de tension ou une prise de glycémie.
+// On garde un seul type Prisma "enum" car PostgreSQL stocke ça comme un
+// type natif (plus fiable qu'une simple chaîne libre : impossible d'insérer
+// une valeur hors de cette liste, même par erreur applicative).
+enum TypeMesure {
+  tension
+  glycemie
+}
+
+model Mesure {
+  id String @id @default(uuid())
+
+  // Identifiant de l'utilisateur authentifié (fourni par Clerk ou
+  // Supabase Auth, selon le choix qui sera fait). On ne crée pas de table
+  // "User" locale : l'auth est déléguée à un service externe, donc userId
+  // est un simple identifiant opaque, pas une vraie clé étrangère SQL.
+  userId String @map("user_id")
+
+  type TypeMesure
+
+  // Systolique (tension) ou valeur de glycémie (glycemie).
+  valeur1 Int @map("valeur_1")
+
+  // Diastolique — uniquement pertinent pour le type "tension".
+  valeur2 Int? @map("valeur_2")
+
+  // Pouls — uniquement pertinent pour le type "tension".
+  pouls Int?
+
+  // Le contexte dépend du type (voir liste dans backend/src/validation/mesureSchemas.js) :
+  //   tension  -> repos | apres_effort | stress
+  //   glycemie -> a_jeun | avant_repas | apres_repas | coucher
+  // On garde une String plutôt qu'un enum Prisma ici : la liste de valeurs
+  // valides change selon "type", et un enum SQL ne peut pas exprimer cette
+  // dépendance entre deux colonnes. Le respect de la bonne liste est donc
+  // garanti par la validation applicative (couche validation), pas par la
+  // base de données.
+  contexte String
+
+  note String? @db.Text
+
+  // Date/heure de la mesure elle-même (modifiable par l'utilisateur),
+  // à distinguer de createdAt (date de création de l'enregistrement).
+  dateHeure DateTime @map("date_heure")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Index sur userId : quasiment toutes les requêtes filtrent par
+  // utilisateur (un patient ne doit voir que ses propres mesures).
+  // Index composé userId+type+dateHeure : optimise le futur GET /mesures
+  // qui filtre par type et par période pour un utilisateur donné.
+  @@index([userId])
+  @@index([userId, type, dateHeure])
+  @@map("mesures")
+}
