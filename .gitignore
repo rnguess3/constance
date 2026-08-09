@@ -1,0 +1,28 @@
+# Dépendances installées par npm (se réinstallent avec "npm install")
+node_modules/
+
+# Fichiers d'environnement contenant des secrets (mots de passe, clés API...)
+# Seul .env.example doit être versionné, jamais .env
+.env
+.env.local
+.env.*.local
+
+# Fichiers de build / production
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Fichiers spécifiques à l'éditeur / l'OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cache Vite
+.vite/
+
+# Prisma (le client généré, pas le schema)
+backend/generated/

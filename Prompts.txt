@@ -1,0 +1,306 @@
+# Constance — Prompts de conception complète
+
+Ce document regroupe tous les prompts à utiliser (dans l'ordre) avec un assistant
+de code comme Claude Code pour construire l'application. Chaque prompt est
+autonome : tu peux le copier-coller tel quel dans une nouvelle session.
+
+Utilise-les un par un, dans l'ordre. Ne passe au suivant que quand le précédent
+fonctionne et que tu comprends ce qui a été fait.
+
+---
+
+## Contexte produit (à garder sous la main, pas un prompt)
+
+- **Produit** : Constance, PWA de suivi quotidien de tension artérielle et de
+  glycémie, demandé par un médecin pour faciliter le suivi patient.
+- **Stack** : React + Vite + Tailwind (front), Node.js + Express + Prisma +
+  PostgreSQL (back), Clerk ou Supabase Auth, vite-plugin-pwa.
+- **Design system** : titres en Fraunces (500/600), corps en IBM Plex Sans,
+  valeurs chiffrées en IBM Plex Mono. Fond papier chaud `#F7F2E9`, accent teal
+  `#1D9E75`, accent corail `#D85A30`.
+- **Modèle de données `mesures`** : id, user_id, type (tension | glycemie),
+  valeur_1, valeur_2 (optionnel), pouls (optionnel), contexte (enum selon
+  type), note (optionnel), date_heure.
+- **Niveau** : développeur débutant en Node/npm/Git — code commenté et
+  pédagogique attendu à chaque étape.
+
+---
+
+## 1. Structure du projet et setup initial
+
+```
+Je démarre le projet "Constance", une PWA de suivi de tension artérielle et
+de glycémie pour un usage patient/médecin.
+
+STACK
+- Frontend : React + Vite + Tailwind CSS
+- Backend : Node.js + Express + Prisma + PostgreSQL
+- Monorepo simple (pas de tooling monorepo complexe type Nx/Turborepo,
+  juste deux dossiers frontend/ et backend/ à la racine)
+
+TÂCHE
+Mets en place la structure de dossiers du projet et les commandes
+d'initialisation :
+1. Arborescence des dossiers (frontend/, backend/, racine avec README)
+2. Initialisation Git avec un .gitignore adapté (node_modules, .env, etc.)
+3. package.json pour chaque dossier avec les dépendances de base
+4. Configuration Tailwind avec mes couleurs personnalisées (teal #1D9E75,
+   corail #D85A30, fond papier #F7F2E9) et mes polices (Fraunces, IBM Plex
+   Sans, IBM Plex Mono via Google Fonts)
+5. Un fichier .env.example pour le backend (variables DATABASE_URL, PORT, etc.)
+6. Un serveur Express minimal qui répond sur une route /health
+
+CONTRAINTES
+- Je débute en Node/npm/Git : explique chaque commande avant de me la donner,
+  et commente les fichiers de config
+- Donne-moi aussi les commandes Git pour le premier commit
+```
+
+---
+
+## 2. Modèle de données et API backend
+
+```
+Je continue le développement de Constance (contexte : voir modèle de données
+ci-dessous). Le projet frontend/backend est déjà initialisé (Express +
+Prisma + PostgreSQL).
+
+MODÈLE DE DONNÉES
+Table `mesures` :
+- id (uuid, clé primaire)
+- user_id (référence à l'utilisateur authentifié)
+- type (enum : "tension" | "glycemie")
+- valeur_1 (integer — systolique pour tension, valeur glycémie pour glycemie)
+- valeur_2 (integer, optionnel — diastolique, uniquement pour tension)
+- pouls (integer, optionnel — uniquement pour tension)
+- contexte (string — "repos"/"apres_effort"/"stress" pour tension,
+  "a_jeun"/"avant_repas"/"apres_repas"/"coucher" pour glycemie)
+- note (text, optionnel)
+- date_heure (timestamp, modifiable manuellement par l'utilisateur)
+- created_at, updated_at
+
+TÂCHE
+1. Écris le schéma Prisma complet pour cette table
+2. Génère la migration
+3. Implémente les routes API REST dans Express :
+   - POST /mesures (créer une mesure)
+   - GET /mesures (lister, avec filtres optionnels ?type= et ?from=&to=)
+   - PATCH /mesures/:id (corriger une mesure)
+   - DELETE /mesures/:id (supprimer une mesure)
+4. Ajoute la validation des entrées (ex: valeur_1 doit être un nombre
+   raisonnable selon le type, contexte doit faire partie de l'enum attendu)
+5. Structure le code en couches claires (routes / contrôleurs / accès aux
+   données) même si c'est un petit projet, pour que ce soit lisible
+
+CONTRAINTES
+- Commente le rôle de chaque fichier et de chaque couche
+- Explique pourquoi la validation est faite côté serveur même si elle
+  existera aussi côté frontend
+```
+
+---
+
+## 3. Authentification
+
+```
+Je continue Constance. Le backend Express + Prisma est en place avec les
+routes /mesures. Il me faut maintenant l'authentification.
+
+TÂCHE
+1. Intègre [Clerk / Supabase Auth — choisis celui que tu préfères] pour
+   l'authentification côté frontend (React) et la vérification des tokens
+   côté backend (Express)
+2. Protège les routes /mesures pour qu'un utilisateur ne voie et ne modifie
+   que ses propres mesures (filtre automatique par user_id)
+3. Crée un écran de connexion / inscription simple, cohérent avec le design
+   system (fond papier #F7F2E9, titre en Fraunces, bouton teal #1D9E75)
+4. Gère le cas où le token est expiré ou invalide (redirection propre vers
+   la connexion, pas d'erreur brute affichée à l'utilisateur)
+
+CONTRAINTES
+- Explique la différence entre l'authentification côté client et la
+  vérification côté serveur — c'est un point que je ne maîtrise pas encore
+- Ne stocke jamais de mot de passe ou de token en clair dans le code ou le
+  repo Git ; utilise les variables d'environnement
+```
+
+---
+
+## 4. Écran de saisie rapide
+
+```
+Je continue Constance. Auth et API /mesures sont en place. Je passe à
+l'écran principal : la saisie rapide d'une mesure.
+
+MAQUETTE (déjà validée)
+- Onglets "Tension" / "Glycémie" en haut, sélection unique
+- Pour Tension : 3 champs numériques centrés (systolique, diastolique,
+  pouls), gros, police IBM Plex Mono, ouverture du clavier numérique au tap
+- Pour Glycémie : 1 champ numérique (valeur) + contexte
+- Contexte sous forme de chips à sélection unique (pas de menu déroulant) :
+  "repos"/"après effort"/"stress" pour tension,
+  "à jeun"/"avant repas"/"après repas"/"coucher" pour glycémie
+- Champ note optionnel, texte libre
+- Bouton "Enregistrer la mesure" plein largeur, fond corail #D85A30
+- Navigation basse à 3 items : Saisir / Tendances / Export
+- Date/heure automatique à l'ouverture, mais modifiable manuellement
+
+TÂCHE
+1. Construis le composant React de cet écran avec Tailwind, en respectant
+   exactement le design system (couleurs, polices, espacements)
+2. Connecte-le à l'API POST /mesures
+3. Gère les états : chargement pendant l'envoi, succès (petit feedback
+   visuel, pas de popup intrusive), erreur (message clair sous le formulaire)
+4. Ajoute la validation côté client (correspondant à celle du backend)
+5. Prévois le stockage local temporaire (IndexedDB ou localStorage selon ce
+   qui est le plus adapté) pour permettre la saisie hors-ligne, avec
+   synchronisation vers le serveur au retour de connexion
+
+CONTRAINTES
+- Code commenté, découpage en petits composants réutilisables
+  (NumericField, ContextChip, etc.)
+- Explique ton choix entre IndexedDB et localStorage pour le mode hors-ligne
+```
+
+---
+
+## 5. Écran historique et correction
+
+```
+Je continue Constance. L'écran de saisie fonctionne. Il me faut maintenant
+l'historique des mesures.
+
+TÂCHE
+1. Construis un écran listant les mesures par ordre chronologique inversé
+   (plus récent en premier), groupées par jour
+2. Chaque ligne affiche : heure, type, valeurs, contexte en badge coloré
+   (teal pour tension, corail pour glycémie par exemple)
+3. Permet de taper une ligne pour l'éditer (réouvre le formulaire de saisie
+   pré-rempli) ou la supprimer (avec confirmation avant suppression)
+4. Ajoute un filtre simple en haut : Tout / Tension seule / Glycémie seule
+5. Connecte-le à GET /mesures, PATCH /mesures/:id, DELETE /mesures/:id
+
+CONTRAINTES
+- Reste cohérent avec le design system déjà utilisé pour l'écran de saisie
+- Gère le cas où il n'y a encore aucune mesure (état vide accueillant,
+  pas juste une liste blanche)
+```
+
+---
+
+## 6. Écran de tendances (graphiques)
+
+```
+Je continue Constance. Historique et saisie sont fonctionnels. Il me faut
+l'écran de tendances, celui qui donne de la valeur au patient et au médecin.
+
+TÂCHE
+1. Construis un écran avec un sélecteur de période (7 jours / 30 jours)
+2. Pour la tension : un graphique en ligne avec deux courbes (systolique,
+   diastolique), et le pouls en courbe secondaire plus discrète
+3. Pour la glycémie : un graphique en ligne avec un code couleur ou marqueur
+   différent selon le contexte (à jeun / avant repas / après repas / coucher)
+4. Affiche au-dessus du graphique 3 métriques résumées : moyenne, valeur la
+   plus haute, valeur la plus basse sur la période sélectionnée
+5. Utilise une librairie de graphiques légère et simple (Recharts par
+   exemple) plutôt que quelque chose de complexe à configurer
+
+CONTRAINTES
+- Respecte le design system : teal pour tension, corail pour glycémie,
+  fond papier, aucun élément visuel superflu (pas de grille lourde, pas
+  d'ombres)
+- Le graphique doit rester lisible sur mobile (largeur d'écran ~380px)
+- N'ajoute aucune alerte ou seuil médical automatique — uniquement de
+  la visualisation neutre des données
+```
+
+---
+
+## 7. Export PDF / CSV pour le médecin
+
+```
+Je continue Constance. Les écrans de saisie, historique et tendances sont
+fonctionnels. Il me faut la fonctionnalité d'export, qui est la vraie
+raison d'être de l'app pour le suivi médical.
+
+TÂCHE
+1. Génère un export PDF présentable : en-tête avec nom du patient et
+   période couverte, le graphique de tendance de la période sélectionnée,
+   un tableau des mesures brutes, et les 3 métriques résumées (moyenne,
+   min, max)
+2. Génère aussi une option d'export CSV brut (toutes les colonnes de la
+   table mesures) pour les médecins qui préfèrent leur propre traitement
+3. Ajoute un bouton de partage (ouvrir le partage natif du téléphone via
+   l'API Web Share si disponible, sinon téléchargement classique)
+4. Place ce point d'entrée dans l'onglet "Export" de la navigation basse
+
+CONTRAINTES
+- Le PDF doit rester sobre et lisible imprimé en noir et blanc (le médecin
+  l'imprimera peut-être) : ne compte pas uniquement sur la couleur pour
+  distinguer les séries de données
+- Explique quelle librairie tu choisis pour la génération PDF côté client
+  ou serveur, et pourquoi
+```
+
+---
+
+## 8. Rappels et notifications
+
+```
+Je continue Constance. L'app est fonctionnelle de bout en bout. Il me faut
+maintenant les rappels de prise de mesure.
+
+TÂCHE
+1. Implémente les notifications push web (via le service worker déjà en
+   place pour la PWA) pour deux rappels quotidiens à heure fixe
+   (configurable par l'utilisateur : ex. "prise du matin" à 8h, "prise du
+   soir" à 20h)
+2. Crée un écran de réglages simple pour activer/désactiver les rappels et
+   changer les heures
+3. Gère la demande de permission de notification de façon non intrusive
+   (explique pourquoi avant de déclencher la popup native du navigateur)
+
+CONTRAINTES
+- Explique les limites des notifications web push sur iOS (Safari) par
+  rapport à Android, pour que je sache à quoi m'attendre en test
+```
+
+---
+
+## 9. Finalisation PWA et déploiement
+
+```
+Je continue Constance. Toutes les fonctionnalités du MVP sont implémentées.
+Dernière étape : rendre l'app installable et la déployer.
+
+TÂCHE
+1. Finalise la configuration PWA avec vite-plugin-pwa : manifest.json
+   complet (nom, icônes à plusieurs tailles, couleur de thème #1D9E75,
+   couleur de fond #F7F2E9), stratégie de cache pour le mode hors-ligne
+2. Vérifie que l'app passe les critères d'installabilité (testable via les
+   outils de développement Chrome)
+3. Prépare le déploiement :
+   - Frontend sur Vercel ou Netlify (connexion au repo Git, build command,
+     variables d'environnement)
+   - Backend + PostgreSQL sur Railway ou Render
+4. Donne-moi la checklist des variables d'environnement à configurer sur
+   chaque plateforme (sans jamais les écrire en clair dans le code)
+
+CONTRAINTES
+- Explique chaque étape comme si c'était mon premier déploiement, car
+  c'est probablement le cas
+- Rappelle-moi de tester le mode hors-ligne et l'installation sur mobile
+  avant de considérer le MVP terminé
+```
+
+---
+
+## Notes d'usage
+
+- **Un prompt = une session de travail.** Ne mélange pas plusieurs étapes
+  dans la même conversation avec l'assistant de code ; ça donne de
+  meilleurs résultats et du code plus facile à réviser.
+- **Adapte les crochets** `[ ]` avant d'envoyer (ex: choix entre Clerk et
+  Supabase Auth à l'étape 3).
+- **Recommande-toi de commit après chaque prompt réussi** — ça te donne des
+  points de retour propres si une étape suivante casse quelque chose.
