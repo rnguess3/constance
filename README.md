@@ -7,7 +7,7 @@ faciliter le suivi patient/médecin.
 
 - **Frontend** : React + Vite + Tailwind CSS
 - **Backend** : Node.js + Express + Prisma + PostgreSQL
-- **Auth** : Clerk ou Supabase Auth (à décider)
+- **Auth** : Clerk
 - **PWA** : vite-plugin-pwa
 
 ## Structure du projet
@@ -26,7 +26,7 @@ ConstanceApp/
 ```bash
 cd backend
 npm install
-cp .env.example .env   # puis renseigner DATABASE_URL
+cp .env.example .env   # puis renseigner DATABASE_URL, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY
 npm run dev
 ```
 
@@ -38,8 +38,13 @@ une route de santé sur `/health`.
 ```bash
 cd frontend
 npm install
+cp .env.example .env   # puis renseigner VITE_CLERK_PUBLISHABLE_KEY
 npm run dev
 ```
+
+Les clés Clerk (secrète + publique, la même publique des deux côtés) se
+récupèrent sur https://dashboard.clerk.com, dans les "API Keys" de ton
+appli.
 
 ## Design system
 

@@ -5,13 +5,22 @@ import express from 'express';
 import cors from 'cors';
 import mesureRoutes from './routes/mesureRoutes.js';
 import { gestionnaireErreurs } from './middleware/errorHandler.js';
+import { analyserAuthentification } from './middleware/clerkAuth.js';
 
 const app = express();
 
-// Autorise le frontend (autre port en dev) à appeler cette API.
+// Autorise le frontend (autre port en dev) à appeler cette API, y
+// compris l'en-tête Authorization qui transporte le token Clerk.
 app.use(cors());
 // Permet de lire le JSON envoyé dans le corps des requêtes (req.body).
 app.use(express.json());
+
+// Doit être monté globalement, avant les routes : lit le token Clerk
+// présent sur CHAQUE requête (s'il y en a un) pour le rendre disponible
+// via getAuth(req). Ne bloque rien à ce stade — c'est
+// exigerUtilisateurConnecte (dans mesureRoutes.js) qui refuse l'accès
+// si aucun utilisateur valide n'a été trouvé.
+app.use(analyserAuthentification);
 
 // Route de santé : sert à vérifier que le serveur tourne (utilisée par
 // des outils de monitoring ou simplement pour tester en local).
