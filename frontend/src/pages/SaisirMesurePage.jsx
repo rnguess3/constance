@@ -1,17 +1,21 @@
-// Écran principal : saisie rapide d'une mesure de tension ou de
-// glycémie. Assemble les petits composants de components/saisie/*,
-// gère la validation, l'envoi à l'API, et la bascule vers le stockage
-// hors-ligne (IndexedDB) quand le réseau n'est pas disponible.
-import { useState } from 'react';
+// Écran de saisie rapide — sert aussi d'écran d'ÉDITION.
+//
+// Deux façons d'arriver ici :
+//   - route "/" : création d'une nouvelle mesure (id absent)
+//   - route "/mesures/:id/modifier" (depuis l'historique) : édition d'une
+//     mesure existante, pré-remplie. On réutilise volontairement le même
+//     formulaire plutôt que d'en construire un second : les deux cas
+//     partagent exactement les mêmes champs et la même validation.
+import { useEffect, useState } from 'react';
 import { useAuth, useClerk } from '@clerk/clerk-react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import OngletsType from '../components/saisie/OngletsType.jsx';
 import NumericField from '../components/saisie/NumericField.jsx';
 import ContextChips from '../components/saisie/ContextChips.jsx';
 import NoteField from '../components/saisie/NoteField.jsx';
 import DateHeureField, { versDatetimeLocal, depuisDatetimeLocal } from '../components/saisie/DateHeureField.jsx';
 import BoutonEnregistrer from '../components/saisie/BoutonEnregistrer.jsx';
-import MessageRetour from '../components/saisie/MessageRetour.jsx';
+import MessageRetour from '../components/MessageRetour.jsx';
 import { CONTEXTES_PAR_TYPE, validerMesure, estValide } from '../validation/mesureValidation.js';
 import { appelApi, SessionExpireeError } from '../lib/api.js';
 import { ajouterMesureEnAttente } from '../lib/mesuresHorsLigne.js';
@@ -28,9 +32,21 @@ function etatInitial() {
   };
 }
 
-// Construit le corps JSON à envoyer à POST /mesures (ou à mettre en
-// file d'attente) à partir de l'état brut du formulaire. Convertit les
-// champs texte en nombres/null comme attendu par la validation
+function etatDepuisMesure(mesure) {
+  return {
+    type: mesure.type,
+    valeur1: mesure.valeur1 != null ? String(mesure.valeur1) : '',
+    valeur2: mesure.valeur2 != null ? String(mesure.valeur2) : '',
+    pouls: mesure.pouls != null ? String(mesure.pouls) : '',
+    contexte: mesure.contexte,
+    note: mesure.note ?? '',
+    dateHeureTexte: versDatetimeLocal(new Date(mesure.dateHeure)),
+  };
+}
+
+// Construit le corps JSON à envoyer à l'API (ou à mettre en file
+// d'attente) à partir de l'état brut du formulaire. Convertit les champs
+// texte en nombres/null comme attendu par la validation
 // (mesureValidation.js) et par l'API.
 function versPayload(etat) {
   const estTension = etat.type === 'tension';
@@ -46,18 +62,65 @@ function versPayload(etat) {
 }
 
 export default function SaisirMesurePage() {
+  const { id } = useParams();
+  const modeEdition = Boolean(id);
+  const location = useLocation();
+
   const { getToken } = useAuth();
   const { signOut } = useClerk();
   const navigate = useNavigate();
   const { rafraichirCompteurEnAttente } = useOutletContext();
 
-  const [etat, setEtat] = useState(etatInitial);
+  // En mode édition, l'état du formulaire n'existe qu'une fois la
+  // mesure à modifier connue (voir l'effet ci-dessous) : null tant
+  // qu'elle n'est pas prête.
+  const [etat, setEtat] = useState(() => (modeEdition ? null : etatInitial()));
+  const [chargementMesure, setChargementMesure] = useState(modeEdition && !location.state?.mesure);
   const [erreurs, setErreurs] = useState({});
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [retour, setRetour] = useState(null);
 
-  const estTension = etat.type === 'tension';
-  const optionsContexte = CONTEXTES_PAR_TYPE[etat.type];
+  useEffect(() => {
+    if (!modeEdition) return;
+
+    // Cas normal : on vient de l'historique, qui a passé la mesure via
+    // la navigation (évite un aller-retour réseau inutile).
+    if (location.state?.mesure) {
+      setEtat(etatDepuisMesure(location.state.mesure));
+      return;
+    }
+
+    // Cas plus rare (arrivée directe sur l'URL, ex: rechargement de
+    // page) : pas de mesure transmise, on la retrouve en rechargeant la
+    // liste — il n'existe pas de GET /mesures/:id dédié côté API.
+    let annule = false;
+    async function chargerMesure() {
+      try {
+        const token = await getToken();
+        const mesures = await appelApi('/mesures', { token });
+        if (annule) return;
+        const trouvee = mesures.find((m) => m.id === id);
+        if (trouvee) setEtat(etatDepuisMesure(trouvee));
+        else setRetour({ statut: 'erreur', texte: 'Mesure introuvable (peut-être déjà supprimée).' });
+      } catch (err) {
+        if (err instanceof SessionExpireeError) {
+          await signOut();
+          navigate('/connexion', { replace: true });
+          return;
+        }
+        if (!annule) setRetour({ statut: 'erreur', texte: 'Impossible de charger cette mesure.' });
+      } finally {
+        if (!annule) setChargementMesure(false);
+      }
+    }
+    chargerMesure();
+    return () => {
+      annule = true;
+    };
+    // location.state ne change pas pendant la vie de la page : seul id
+    // doit redéclencher ce chargement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   function majChamp(champ, valeur) {
     setEtat((precedent) => ({ ...precedent, [champ]: valeur }));
@@ -90,16 +153,22 @@ export default function SaisirMesurePage() {
 
     const corpsRequete = { ...payload, dateHeure: payload.dateHeure.toISOString() };
 
+    if (modeEdition) {
+      await envoyerModification(corpsRequete);
+    } else {
+      await envoyerCreation(corpsRequete);
+    }
+
+    setEnvoiEnCours(false);
+  }
+
+  async function envoyerCreation(corpsRequete) {
     try {
       if (!navigator.onLine) {
         throw new TypeError('hors-ligne');
       }
       const token = await getToken();
-      await appelApi('/mesures', {
-        method: 'POST',
-        token,
-        body: JSON.stringify(corpsRequete),
-      });
+      await appelApi('/mesures', { method: 'POST', token, body: JSON.stringify(corpsRequete) });
       setRetour({ statut: 'succes', texte: 'Mesure enregistrée.' });
       reinitialiserApresEnvoi();
     } catch (err) {
@@ -108,7 +177,6 @@ export default function SaisirMesurePage() {
         navigate('/connexion', { replace: true });
         return;
       }
-
       if (err instanceof TypeError) {
         // Pas de réseau (soit détecté via navigator.onLine, soit parce
         // que fetch() a échoué avant même d'atteindre le serveur) : on
@@ -120,19 +188,55 @@ export default function SaisirMesurePage() {
           texte: 'Hors connexion : mesure enregistrée sur cet appareil, elle sera envoyée automatiquement au retour du réseau.',
         });
         reinitialiserApresEnvoi();
-      } else if (err.status === 400 && err.details) {
-        // Le serveur a quand même refusé la mesure (garde-fou ultime,
-        // voir mesureSchemas.js côté backend) : on réaffiche ses erreurs
-        // champ par champ, au même endroit que la validation locale.
-        const erreursServeur = {};
-        for (const detail of err.details) erreursServeur[detail.champ] = detail.message;
-        setErreurs(erreursServeur);
-        setRetour({ statut: 'erreur', texte: 'Corrige les champs indiqués avant d’enregistrer.' });
       } else {
-        setRetour({ statut: 'erreur', texte: err.message || 'Une erreur est survenue, réessaie.' });
+        gererErreurValidationServeur(err);
       }
-    } finally {
-      setEnvoiEnCours(false);
+    }
+  }
+
+  async function envoyerModification(corpsRequete) {
+    try {
+      if (!navigator.onLine) {
+        throw new TypeError('hors-ligne');
+      }
+      const token = await getToken();
+      await appelApi(`/mesures/${id}`, { method: 'PATCH', token, body: JSON.stringify(corpsRequete) });
+      // Contrairement à la création, on ne reste pas sur place : l'édition
+      // est une action ponctuelle, on revient directement à la liste où
+      // la ligne mise à jour sera visible.
+      navigate('/historique', { replace: true });
+    } catch (err) {
+      if (err instanceof SessionExpireeError) {
+        await signOut();
+        navigate('/connexion', { replace: true });
+        return;
+      }
+      if (err instanceof TypeError) {
+        // On ne met pas les modifications en file d'attente : contrairement
+        // à une création, une édition cible un enregistrement précis côté
+        // serveur, et gérer ce cas hors-ligne proprement demanderait une
+        // logique de fusion plus complexe, hors scope pour l'instant.
+        setRetour({
+          statut: 'erreur',
+          texte: 'Connexion requise pour enregistrer une modification. Réessaie une fois en ligne.',
+        });
+      } else {
+        gererErreurValidationServeur(err);
+      }
+    }
+  }
+
+  function gererErreurValidationServeur(err) {
+    if (err.status === 400 && err.details) {
+      // Le serveur a quand même refusé la mesure (garde-fou ultime, voir
+      // mesureSchemas.js côté backend) : on réaffiche ses erreurs champ
+      // par champ, au même endroit que la validation locale.
+      const erreursServeur = {};
+      for (const detail of err.details) erreursServeur[detail.champ] = detail.message;
+      setErreurs(erreursServeur);
+      setRetour({ statut: 'erreur', texte: 'Corrige les champs indiqués avant d’enregistrer.' });
+    } else {
+      setRetour({ statut: 'erreur', texte: err.message || 'Une erreur est survenue, réessaie.' });
     }
   }
 
@@ -148,10 +252,38 @@ export default function SaisirMesurePage() {
     setErreurs({});
   }
 
+  if (modeEdition && chargementMesure) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-paper px-4 pb-24">
+        <p className="font-sans text-sm text-neutral-500">Chargement…</p>
+      </main>
+    );
+  }
+
+  if (modeEdition && !etat) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-paper px-4 pb-24">
+        <MessageRetour statut={retour?.statut} texte={retour?.texte} />
+        <button
+          type="button"
+          onClick={() => navigate('/historique')}
+          className="font-sans text-sm text-teal underline"
+        >
+          Retour à l’historique
+        </button>
+      </main>
+    );
+  }
+
+  const estTension = etat.type === 'tension';
+  const optionsContexte = CONTEXTES_PAR_TYPE[etat.type];
+
   return (
     <main className="min-h-screen bg-paper px-4 pb-28 pt-6">
       <div className="mx-auto flex max-w-sm flex-col gap-6">
-        <h1 className="text-center font-display text-3xl font-semibold text-teal">Nouvelle mesure</h1>
+        <h1 className="text-center font-display text-3xl font-semibold text-teal">
+          {modeEdition ? 'Modifier la mesure' : 'Nouvelle mesure'}
+        </h1>
 
         <OngletsType valeur={etat.type} onChange={changerType} />
 
@@ -215,7 +347,20 @@ export default function SaisirMesurePage() {
 
           <MessageRetour statut={retour?.statut} texte={retour?.texte} />
 
-          <BoutonEnregistrer chargement={envoiEnCours} />
+          <BoutonEnregistrer
+            chargement={envoiEnCours}
+            texte={modeEdition ? 'Enregistrer les modifications' : 'Enregistrer la mesure'}
+          />
+
+          {modeEdition && (
+            <button
+              type="button"
+              onClick={() => navigate('/historique')}
+              className="font-sans text-sm text-neutral-500 underline"
+            >
+              Annuler
+            </button>
+          )}
         </form>
       </div>
     </main>

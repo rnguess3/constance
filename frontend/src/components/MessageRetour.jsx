@@ -1,6 +1,7 @@
-// Retour visuel après l'envoi (succès / erreur / enregistré hors-ligne).
-// Toujours affiché inline sous le formulaire — jamais de popup/modale
-// qui interromprait la saisie de la mesure suivante.
+// Retour visuel après une action (succès / erreur / enregistré
+// hors-ligne). Toujours affiché inline — jamais de popup/modale qui
+// interromprait l'utilisateur. Partagé entre l'écran de saisie et
+// l'historique.
 const STYLES = {
   succes: 'bg-teal/10 text-teal border-teal/30',
   erreur: 'bg-corail/10 text-corail border-corail/30',

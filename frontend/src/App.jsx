@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import ConnexionPage from './pages/ConnexionPage.jsx';
 import SaisirMesurePage from './pages/SaisirMesurePage.jsx';
+import HistoriquePage from './pages/HistoriquePage.jsx';
 import TendancesPage from './pages/TendancesPage.jsx';
 import ExportPage from './pages/ExportPage.jsx';
 import RouteProtegee from './components/RouteProtegee.jsx';
@@ -18,6 +19,8 @@ export default function App() {
         }
       >
         <Route path="/" element={<SaisirMesurePage />} />
+        <Route path="/mesures/:id/modifier" element={<SaisirMesurePage />} />
+        <Route path="/historique" element={<HistoriquePage />} />
         <Route path="/tendances" element={<TendancesPage />} />
         <Route path="/export" element={<ExportPage />} />
       </Route>
