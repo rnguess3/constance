@@ -21,9 +21,14 @@ export default function MiseEnPagePrincipale() {
   return (
     <div className="min-h-screen bg-paper">
       <header className="flex items-center justify-between gap-2 px-4 py-2">
-        <Link to="/historique" className="font-sans text-xs font-medium text-teal underline">
-          Historique
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/historique" className="font-sans text-xs font-medium text-teal underline">
+            Historique
+          </Link>
+          <Link to="/reglages" className="font-sans text-xs font-medium text-teal underline">
+            Réglages
+          </Link>
+        </div>
         <div className="flex items-center gap-3">
           <span className="truncate font-sans text-xs text-neutral-500">
             {user?.primaryEmailAddress?.emailAddress}

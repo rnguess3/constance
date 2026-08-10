@@ -46,6 +46,11 @@ Les clés Clerk (secrète + publique, la même publique des deux côtés) se
 récupèrent sur https://dashboard.clerk.com, dans les "API Keys" de ton
 appli.
 
+## Déploiement
+
+Guide complet (Vercel + Railway, variables d'environnement, checklist
+d'installabilité PWA) dans [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ## Design system
 
 - **Titres** : Fraunces (500/600)

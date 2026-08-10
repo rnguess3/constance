@@ -3,7 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#F7F2E9" />
+    <meta name="theme-color" content="#1D9E75" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+
+    <!-- iOS ignore le manifest pour l'icône/l'écran d'accueil : il lui faut
+         ces balises dédiées (voir aussi ReglagesPage.jsx, qui explique aux
+         utilisateurs iOS d'ajouter l'app à l'écran d'accueil pour les
+         notifications). -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Constance" />
+
     <title>Constance</title>
   </head>
   <body>

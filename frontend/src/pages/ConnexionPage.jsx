@@ -71,6 +71,10 @@ export default function ConnexionPage() {
         setErreur("Étape de connexion supplémentaire requise, non gérée par cet écran.");
       }
     } catch (err) {
+      // Le message affiché à l'utilisateur reste volontairement générique
+      // (messageErreurLisible) ; le détail technique part dans la console
+      // pour le débogage — jamais affiché tel quel dans l'interface.
+      console.error('[Clerk]', err?.errors ?? err);
       setErreur(messageErreurLisible(err));
     } finally {
       setChargement(false);
@@ -88,6 +92,10 @@ export default function ConnexionPage() {
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setMode('verification');
     } catch (err) {
+      // Le message affiché à l'utilisateur reste volontairement générique
+      // (messageErreurLisible) ; le détail technique part dans la console
+      // pour le débogage — jamais affiché tel quel dans l'interface.
+      console.error('[Clerk]', err?.errors ?? err);
       setErreur(messageErreurLisible(err));
     } finally {
       setChargement(false);
@@ -108,6 +116,10 @@ export default function ConnexionPage() {
         setErreur('Code invalide ou incomplet.');
       }
     } catch (err) {
+      // Le message affiché à l'utilisateur reste volontairement générique
+      // (messageErreurLisible) ; le détail technique part dans la console
+      // pour le débogage — jamais affiché tel quel dans l'interface.
+      console.error('[Clerk]', err?.errors ?? err);
       setErreur(messageErreurLisible(err));
     } finally {
       setChargement(false);
@@ -186,6 +198,14 @@ export default function ConnexionPage() {
               onChange={(e) => setMotDePasse(e.target.value)}
               className={classeChamp}
             />
+            {/* Requis par Clerk pour la protection anti-bot (Smart CAPTCHA) sur
+                l'inscription : sans ce point d'ancrage, Clerk ne peut pas monter
+                son challenge (invisible la plupart du temps) et signUp.create()
+                reste bloqué indéfiniment sans jamais résoudre ni rejeter — d'où
+                le bouton qui restait coincé sur "Création…". Voir
+                https://clerk.com/docs/guides/development/custom-flows/bot-sign-up-protection */}
+            <div id="clerk-captcha" />
+
             {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
             <button type="submit" disabled={chargement} className={classeBouton}>
               {chargement ? 'Création…' : 'Créer mon compte'}

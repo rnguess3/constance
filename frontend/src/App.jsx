@@ -4,6 +4,7 @@ import SaisirMesurePage from './pages/SaisirMesurePage.jsx';
 import HistoriquePage from './pages/HistoriquePage.jsx';
 import TendancesPage from './pages/TendancesPage.jsx';
 import ExportPage from './pages/ExportPage.jsx';
+import ReglagesPage from './pages/ReglagesPage.jsx';
 import RouteProtegee from './components/RouteProtegee.jsx';
 import MiseEnPagePrincipale from './components/MiseEnPagePrincipale.jsx';
 
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/historique" element={<HistoriquePage />} />
         <Route path="/tendances" element={<TendancesPage />} />
         <Route path="/export" element={<ExportPage />} />
+        <Route path="/reglages" element={<ReglagesPage />} />
       </Route>
     </Routes>
   );

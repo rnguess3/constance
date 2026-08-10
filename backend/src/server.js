@@ -4,14 +4,20 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import mesureRoutes from './routes/mesureRoutes.js';
+import rappelRoutes from './routes/rappelRoutes.js';
 import { gestionnaireErreurs } from './middleware/errorHandler.js';
 import { analyserAuthentification } from './middleware/clerkAuth.js';
+import { demarrerPlanificateurRappels } from './lib/planificateurRappels.js';
 
 const app = express();
 
-// Autorise le frontend (autre port en dev) à appeler cette API, y
-// compris l'en-tête Authorization qui transporte le token Clerk.
-app.use(cors());
+// Autorise uniquement le frontend (FRONTEND_URL) à appeler cette API, y
+// compris l'en-tête Authorization qui transporte le token Clerk. Sans
+// "origin" explicite, cors() accepte n'importe quelle origine — tolérable
+// en dev local, mais pas une fois l'API exposée publiquement en
+// production : un site tiers pourrait sinon appeler l'API au nom d'un
+// utilisateur dont le navigateur détient un token valide.
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 // Permet de lire le JSON envoyé dans le corps des requêtes (req.body).
 app.use(express.json());
 
@@ -29,6 +35,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/mesures', mesureRoutes);
+app.use('/rappels', rappelRoutes);
 
 // Doit rester le DERNIER app.use() : Express l'identifie comme
 // gestionnaire d'erreurs grâce à sa signature à 4 arguments, et ne
@@ -39,4 +46,5 @@ const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`Serveur Constance démarré sur http://localhost:${PORT}`);
+  demarrerPlanificateurRappels();
 });

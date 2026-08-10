@@ -11,6 +11,9 @@ node_modules/
 dist/
 build/
 
+# Build du service worker en mode dev (vite-plugin-pwa, devOptions.enabled)
+dev-dist/
+
 # Logs
 *.log
 npm-debug.log*

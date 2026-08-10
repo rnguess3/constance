@@ -5,9 +5,14 @@ import { CONTEXTES_PAR_TYPE } from '../validation/mesureValidation.js';
 
 const FORMATEUR_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const FORMATEUR_JOUR = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const FORMATEUR_DATE_COURTE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 export function formatHeure(dateIso) {
   return FORMATEUR_HEURE.format(new Date(dateIso));
+}
+
+export function formatDateCourte(dateIso) {
+  return FORMATEUR_DATE_COURTE.format(new Date(dateIso));
 }
 
 function estMemeJour(a, b) {

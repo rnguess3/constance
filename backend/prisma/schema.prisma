@@ -73,3 +73,54 @@ model Mesure {
   @@index([userId, type, dateHeure])
   @@map("mesures")
 }
+
+// Préférences de rappel quotidien d'un utilisateur (un seul enregistrement
+// par utilisateur — mêmes conventions userId "opaque" que Mesure).
+// Les heures sont stockées en chaîne "HH:mm" (heure LOCALE au fuseau
+// horaire ci-dessous, pas UTC) : le planificateur les compare directement
+// à l'heure courante convertie dans ce même fuseau. C'est le client qui
+// fournit fuseauHoraire (Intl.DateTimeFormat().resolvedOptions().timeZone)
+// au moment où l'utilisateur choisit ses heures.
+model PreferenceRappel {
+  id String @id @default(uuid())
+
+  userId String @unique @map("user_id")
+
+  rappelMatinActif Boolean @default(false) @map("rappel_matin_actif")
+  heureMatin       String  @default("08:00") @map("heure_matin")
+
+  rappelSoirActif Boolean @default(false) @map("rappel_soir_actif")
+  heureSoir       String  @default("20:00") @map("heure_soir")
+
+  fuseauHoraire String @default("Europe/Paris") @map("fuseau_horaire")
+
+  // Date ("YYYY-MM-DD", dans fuseauHoraire) du dernier rappel envoyé pour
+  // chaque créneau : évite un double envoi si le planificateur tourne
+  // deux fois dans la même minute ou redémarre pendant celle-ci.
+  derniereDateEnvoiMatin String? @map("derniere_date_envoi_matin")
+  derniereDateEnvoiSoir  String? @map("derniere_date_envoi_soir")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("preferences_rappel")
+}
+
+// Un abonnement Web Push par navigateur/appareil sur lequel l'utilisateur
+// a autorisé les notifications (un même utilisateur peut en avoir
+// plusieurs : téléphone + ordinateur...). Contenu fourni tel quel par
+// l'API PushManager du navigateur (endpoint + clés de chiffrement).
+model AbonnementPush {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+
+  endpoint  String @unique @db.Text
+  cleP256dh String @map("cle_p256dh")
+  cleAuth   String @map("cle_auth")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("abonnements_push")
+}
