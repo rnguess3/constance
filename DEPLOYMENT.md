@@ -173,20 +173,32 @@ CORS — voir `backend/src/server.js`). Ordre à suivre :
 
 ## Étape 3 — Ne pas oublier Clerk
 
-Clerk distingue les domaines autorisés en développement de ceux en
-production. Une fois `VITE_CLERK_PUBLISHABLE_KEY` configurée sur Vercel,
-va sur https://dashboard.clerk.com → ton appli → **"Domains"** (ou
-"Paths"/"Configure" selon la version de l'interface) et ajoute ton URL
-Vercel de production. Sans ça, la connexion échoue silencieusement (ou
-avec une erreur CORS/domaine) une fois déployé, alors qu'elle marchait en
-local — un piège classique de premier déploiement.
+**Correction par rapport à une version précédente de ce guide** : en
+vérifiant dans la documentation Clerk avant d'exécuter cette étape, il
+s'avère que la section "Domains" du dashboard (et l'ajout manuel d'un
+domaine) fait partie du flux de bascule vers une **instance de
+production** (clés `pk_live_...`/`sk_live_...`) — ce n'est pas une étape
+requise tant que l'app tourne avec des clés `pk_test_.../sk_test_...`
+(mode développement). Une instance de développement Clerk est justement
+conçue pour fonctionner depuis n'importe quelle origine sans
+allowlist à configurer (c'est ce qui permet de tester depuis localhost,
+un aperçu Vercel, un domaine de prod, etc. sans rien déclarer) — donc si
+`constance` utilise encore ses clés `pk_test_...` actuelles, **il n'y a
+probablement rien à faire ici pour que la connexion fonctionne**.
 
-Si tu utilises encore les clés `pk_test_...` / `sk_test_...` (mode test)
-en production, ça fonctionne mais avec les limites du mode test Clerk
-(pas d'emails réels envoyés selon la config, etc.) — passe en clés
-`pk_live_...` / `sk_live_...` quand tu seras prêt pour de vrais
-utilisateurs, ce n'est pas obligatoire pour un premier déploiement de
-test.
+**Vérification la plus fiable : teste directement la connexion sur
+l'URL Vercel déployée.** Si le flux de connexion Clerk fonctionne, cette
+étape est terminée, sans action dashboard. Si tu obtiens une erreur
+Clerk précise au moment de te connecter, note le message exact — ce sera
+plus fiable pour diagnostiquer que d'anticiper une cause.
+
+Quand tu voudras passer à de vrais utilisateurs (pas juste un test), il
+faudra à ce moment-là créer une instance de **production** dans Clerk
+(clés `pk_live_...`/`sk_live_...`), ce qui implique cette fois un vrai
+enregistrement de domaine avec des enregistrements DNS dédiés (CNAME) —
+une étape plus lourde qu'un simple ajout dans une liste, à traiter
+séparément quand ce sera le moment, pas comme un pré-requis du premier
+déploiement de test.
 
 ---
 

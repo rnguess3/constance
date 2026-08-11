@@ -48,14 +48,42 @@ export default function ConnexionPage() {
   const { isLoaded: signInPret, signIn, setActive: activerSessionConnexion } = useSignIn();
   const { isLoaded: signUpPret, signUp, setActive: activerSessionInscription } = useSignUp();
 
-  // "connexion" | "inscription" | "verification" (étape de saisie du
-  // code envoyé par email après inscription)
+  // "connexion" | "inscription" | "verification-inscription" (code après
+  // inscription) | "verification-connexion" (code demandé en complément
+  // du mot de passe — voir gererConnexion)
   const [mode, setMode] = useState('connexion');
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [code, setCode] = useState('');
   const [erreur, setErreur] = useState('');
   const [chargement, setChargement] = useState(false);
+
+  // Depuis un navigateur/domaine que Clerk n'a encore jamais vu (ex. la
+  // toute première connexion depuis un nouveau domaine de déploiement),
+  // un mot de passe correct ne suffit pas toujours à lui seul : Clerk
+  // peut exiger une vérification complémentaire par code email avant de
+  // finaliser la session (protection contre le vol de mot de passe sur
+  // un appareil inconnu). resultat.status reste alors 'needs_first_factor'
+  // au lieu de 'complete' — il faut le gérer explicitement plutôt que de
+  // supposer que mot de passe correct = connecté.
+  async function gererResultatConnexion(resultat) {
+    if (resultat.status === 'complete') {
+      await activerSessionConnexion({ session: resultat.createdSessionId });
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (resultat.status === 'needs_first_factor') {
+      const facteurEmail = resultat.supportedFirstFactors?.find((f) => f.strategy === 'email_code');
+      if (facteurEmail) {
+        await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: facteurEmail.emailAddressId });
+        setMode('verification-connexion');
+        return;
+      }
+    }
+
+    setErreur("Étape de connexion supplémentaire requise, non gérée par cet écran.");
+  }
 
   async function gererConnexion(e) {
     e.preventDefault();
@@ -64,16 +92,27 @@ export default function ConnexionPage() {
     setChargement(true);
     try {
       const resultat = await signIn.create({ identifier: email, password: motDePasse });
-      if (resultat.status === 'complete') {
-        await activerSessionConnexion({ session: resultat.createdSessionId });
-        navigate('/', { replace: true });
-      } else {
-        setErreur("Étape de connexion supplémentaire requise, non gérée par cet écran.");
-      }
+      await gererResultatConnexion(resultat);
     } catch (err) {
       // Le message affiché à l'utilisateur reste volontairement générique
       // (messageErreurLisible) ; le détail technique part dans la console
       // pour le débogage — jamais affiché tel quel dans l'interface.
+      console.error('[Clerk]', err?.errors ?? err);
+      setErreur(messageErreurLisible(err));
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  async function gererVerificationConnexion(e) {
+    e.preventDefault();
+    if (!signInPret) return;
+    setErreur('');
+    setChargement(true);
+    try {
+      const resultat = await signIn.attemptFirstFactor({ strategy: 'email_code', code });
+      await gererResultatConnexion(resultat);
+    } catch (err) {
       console.error('[Clerk]', err?.errors ?? err);
       setErreur(messageErreurLisible(err));
     } finally {
@@ -90,7 +129,7 @@ export default function ConnexionPage() {
       await signUp.create({ emailAddress: email, password: motDePasse });
       // Clerk envoie un code de vérification par email par défaut.
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setMode('verification');
+      setMode('verification-inscription');
     } catch (err) {
       // Le message affiché à l'utilisateur reste volontairement générique
       // (messageErreurLisible) ; le détail technique part dans la console
@@ -131,7 +170,7 @@ export default function ConnexionPage() {
       <h1 className="font-display text-4xl font-semibold text-teal">Constance</h1>
 
       <div className="w-full max-w-sm rounded-2xl bg-white/60 p-6 shadow-sm">
-        {mode !== 'verification' && (
+        {mode !== 'verification-inscription' && mode !== 'verification-connexion' && (
           <div className="mb-6 flex gap-2 rounded-lg bg-neutral-100 p-1">
             <button
               type="button"
@@ -213,10 +252,32 @@ export default function ConnexionPage() {
           </form>
         )}
 
-        {mode === 'verification' && (
+        {mode === 'verification-inscription' && (
           <form onSubmit={gererVerification} className="flex flex-col gap-4">
             <p className="font-sans text-sm text-neutral-600">
               Un code de vérification a été envoyé à <strong>{email}</strong>.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Code à 6 chiffres"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={classeChamp}
+            />
+            {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
+            <button type="submit" disabled={chargement} className={classeBouton}>
+              {chargement ? 'Vérification…' : 'Valider le code'}
+            </button>
+          </form>
+        )}
+
+        {mode === 'verification-connexion' && (
+          <form onSubmit={gererVerificationConnexion} className="flex flex-col gap-4">
+            <p className="font-sans text-sm text-neutral-600">
+              Nouvel appareil détecté : un code de vérification a été envoyé à <strong>{email}</strong> pour
+              confirmer que c'est bien toi.
             </p>
             <input
               type="text"
