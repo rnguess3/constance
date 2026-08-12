@@ -5,6 +5,7 @@ const COLONNES = [
   'id',
   'type',
   'valeur1',
+  'unite',
   'valeur2',
   'pouls',
   'contexte',
@@ -20,10 +21,22 @@ function echapperChampCsv(valeur) {
   return /[",\r\n]/.test(texte) ? `"${texte.replace(/"/g, '""')}"` : texte;
 }
 
+// `valeur1` reste toujours en unité canonique (mg/dL pour une glycémie,
+// mmHg pour la systolique d'une tension — voir lib/uniteGlycemie.js et
+// backend/prisma/schema.prisma) : cette colonne le rend explicite pour
+// qui réimporte le fichier sans connaître cette convention, sans changer
+// la valeur brute elle-même.
+function uniteValeur1(mesure) {
+  return mesure.type === 'tension' ? 'mmHg' : 'mg/dL';
+}
+
 export function construireCsvMesures(mesures) {
   const lignes = [COLONNES.join(',')];
   for (const mesure of mesures) {
-    lignes.push(COLONNES.map((colonne) => echapperChampCsv(mesure[colonne])).join(','));
+    const champs = COLONNES.map((colonne) =>
+      echapperChampCsv(colonne === 'unite' ? uniteValeur1(mesure) : mesure[colonne]),
+    );
+    lignes.push(champs.join(','));
   }
   // \r\n : convention CSV la plus largement acceptée par les tableurs.
   return lignes.join('\r\n');

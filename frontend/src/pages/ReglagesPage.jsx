@@ -7,8 +7,12 @@ import { useAuth, useClerk } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import MessageRetour from '../components/MessageRetour.jsx';
 import LigneRappel from '../components/reglages/LigneRappel.jsx';
+import SelecteurSegments from '../components/SelecteurSegments.jsx';
 import { appelApi, SessionExpireeError } from '../lib/api.js';
 import { pushEstDisponible, obtenirAbonnementActuel, creerAbonnement, supprimerAbonnementLocal } from '../lib/pushNotifications.js';
+import { UNITES_GLYCEMIE, lireUnitePreferee, ecrireUnitePreferee } from '../lib/uniteGlycemie.js';
+
+const OPTIONS_UNITE_GLYCEMIE = UNITES_GLYCEMIE.map((unite) => ({ valeur: unite, label: unite }));
 
 // 'verification' | 'non-supporte' | 'defaut' | 'permission-sans-abonnement' | 'refuse' | 'accorde'
 export default function ReglagesPage() {
@@ -16,6 +20,7 @@ export default function ReglagesPage() {
   const { signOut } = useClerk();
   const navigate = useNavigate();
 
+  const [uniteGlycemie, setUniteGlycemie] = useState(() => lireUnitePreferee());
   const [etatPermission, setEtatPermission] = useState('verification');
   const [reglages, setReglages] = useState(null);
   const [erreur, setErreur] = useState('');
@@ -163,10 +168,23 @@ export default function ReglagesPage() {
 
   const dejaAutorise = etatPermission === 'permission-sans-abonnement';
 
+  function changerUniteGlycemie(unite) {
+    setUniteGlycemie(unite);
+    ecrireUnitePreferee(unite);
+  }
+
   return (
     <main className="min-h-screen bg-paper px-4 pb-28 pt-6">
       <div className="mx-auto flex max-w-sm flex-col gap-6">
         <h1 className="text-center font-display text-3xl font-semibold text-teal">Réglages</h1>
+
+        <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-4 shadow-sm">
+          <p className="font-sans text-sm font-medium text-neutral-700">Unité de glycémie</p>
+          <p className="font-sans text-xs leading-relaxed text-neutral-500">
+            Utilisée pour la saisie et l’affichage (historique, tendances, export) sur cet appareil.
+          </p>
+          <SelecteurSegments options={OPTIONS_UNITE_GLYCEMIE} valeur={uniteGlycemie} onChange={changerUniteGlycemie} />
+        </div>
 
         <MessageRetour statut={erreur ? 'erreur' : null} texte={erreur} />
 
