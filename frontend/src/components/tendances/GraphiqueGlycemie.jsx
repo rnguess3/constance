@@ -2,8 +2,10 @@
 // une forme différente selon le contexte de la mesure (à jeun / avant
 // repas / après repas / coucher) — pour distinguer les contextes sans
 // sortir de la palette teal/corail du design system.
+import { useMemo } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CONTEXTES_PAR_TYPE } from '../../validation/mesureValidation.js';
+import { arrondirPourUnite, convertirDepuisMgDl } from '../../lib/uniteGlycemie.js';
 
 const CORAIL = '#D85A30';
 const TAILLE = 4;
@@ -61,24 +63,38 @@ const FORMATEUR_INFOBULLE = new Intl.DateTimeFormat('fr-FR', {
 
 const LIBELLE_CONTEXTE = Object.fromEntries(CONTEXTES_PAR_TYPE.glycemie.map((c) => [c.valeur, c.label]));
 
-function Infobulle({ active, payload }) {
+function Infobulle({ active, payload, unite }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 font-sans text-xs">
       <p className="mb-1 text-neutral-400">{FORMATEUR_INFOBULLE.format(point.timestamp)}</p>
-      <p className="font-mono text-corail">{point.valeur1} mg/dL</p>
+      <p className="font-mono text-corail">
+        {point.valeur1} {unite}
+      </p>
       <p className="text-neutral-500">{LIBELLE_CONTEXTE[point.contexte]}</p>
     </div>
   );
 }
 
-export default function GraphiqueGlycemie({ donnees }) {
+export default function GraphiqueGlycemie({ donnees, unite = 'mg/dL' }) {
+  // Le graphique reçoit des valeurs mg/dL (unité canonique de l'API,
+  // voir lib/uniteGlycemie.js) et les convertit vers l'unité préférée de
+  // l'utilisateur juste pour l'affichage (axe, courbe, infobulle).
+  const donneesConverties = useMemo(
+    () =>
+      donnees.map((mesure) => ({
+        ...mesure,
+        valeur1: arrondirPourUnite(convertirDepuisMgDl(mesure.valeur1, unite), unite),
+      })),
+    [donnees, unite],
+  );
+
   return (
     <div className="rounded-xl bg-white p-3">
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={donnees} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+        <LineChart data={donneesConverties} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
           <CartesianGrid vertical={false} stroke="#E5E1D8" />
           <XAxis
             dataKey="timestamp"
@@ -91,7 +107,7 @@ export default function GraphiqueGlycemie({ donnees }) {
             minTickGap={24}
           />
           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#A3A3A3' }} width={32} />
-          <Tooltip content={<Infobulle />} />
+          <Tooltip content={<Infobulle unite={unite} />} />
           <Line
             type="monotone"
             dataKey="valeur1"

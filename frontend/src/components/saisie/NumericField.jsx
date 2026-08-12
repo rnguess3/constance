@@ -1,15 +1,31 @@
 // Champ numérique "gros" pour la saisie rapide d'une valeur (systolique,
 // diastolique, pouls, glycémie...).
 //
-// type="text" + inputMode="numeric" (plutôt que type="number") : ouvre
-// bien le clavier numérique sur mobile, tout en évitant les bizarreries
-// du type number natif (flèches +/-, "e" accepté, zéros de tête
-// supprimés automatiquement...). On filtre nous-mêmes les caractères non
-// numériques dans onChange.
-export default function NumericField({ label, unite, value, onChange, erreur, autoFocus = false, id }) {
+// type="text" + inputMode="numeric"/"decimal" (plutôt que type="number") :
+// ouvre bien le clavier numérique sur mobile, tout en évitant les
+// bizarreries du type number natif (flèches +/-, "e" accepté, zéros de
+// tête supprimés automatiquement...). On filtre nous-mêmes les
+// caractères non numériques dans onChange.
+//
+// `decimales` : nombre de chiffres après la virgule autorisés (0 par
+// défaut = comportement historique, entier sur 3 chiffres). Utilisé pour
+// la glycémie en mmol/L ou g/L, qui se saisissent avec des décimales
+// (voir lib/uniteGlycemie.js).
+function filtrerSaisieNumerique(brut, decimales) {
+  if (decimales <= 0) {
+    return brut.replace(/[^0-9]/g, '').slice(0, 3);
+  }
+  const nettoye = brut.replace(',', '.').replace(/[^0-9.]/g, '');
+  const indexPoint = nettoye.indexOf('.');
+  if (indexPoint === -1) return nettoye.slice(0, 2);
+  const partieEntiere = nettoye.slice(0, indexPoint).slice(0, 2);
+  const partieDecimale = nettoye.slice(indexPoint + 1).replace(/\./g, '').slice(0, decimales);
+  return `${partieEntiere}.${partieDecimale}`;
+}
+
+export default function NumericField({ label, unite, value, onChange, erreur, autoFocus = false, id, decimales = 0 }) {
   function gererChangement(e) {
-    const brut = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
-    onChange(brut);
+    onChange(filtrerSaisieNumerique(e.target.value, decimales));
   }
 
   return (
@@ -20,8 +36,8 @@ export default function NumericField({ label, unite, value, onChange, erreur, au
       <input
         id={id}
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
+        inputMode={decimales > 0 ? 'decimal' : 'numeric'}
+        pattern={decimales > 0 ? '[0-9]*[.,]?[0-9]*' : '[0-9]*'}
         autoFocus={autoFocus}
         value={value}
         onChange={gererChangement}

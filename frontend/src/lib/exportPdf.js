@@ -12,6 +12,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatDateCourte, formatHeure, formatValeurs, libelleContexte, tronquer } from './formatage.js';
 import { CONTEXTES_PAR_TYPE } from '../validation/mesureValidation.js';
+import { formaterNombreDepuisMgDl } from './uniteGlycemie.js';
 
 const GRIS_FONCE = [40, 40, 40];
 const GRIS_MOYEN = [130, 130, 130];
@@ -94,7 +95,16 @@ export function nomFichierExport(extension, periode) {
 // le tableau détaillé de toutes les mesures de la période. `svgTension` /
 // `svgGlycemie` sont les éléments <svg> réellement affichés à l'écran
 // (aperçu de l'écran Export) — null si aucune mesure de ce type.
-export async function genererDocumentPdf({ nomPatient, periodeLisible, mesures, resumeTension, resumeGlycemie, svgTension, svgGlycemie }) {
+export async function genererDocumentPdf({
+  nomPatient,
+  periodeLisible,
+  mesures,
+  resumeTension,
+  resumeGlycemie,
+  uniteGlycemie = 'mg/dL',
+  svgTension,
+  svgGlycemie,
+}) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const margeGauche = 15;
   const largeurPage = doc.internal.pageSize.getWidth();
@@ -167,7 +177,9 @@ export async function genererDocumentPdf({ nomPatient, periodeLisible, mesures, 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(
-      `Moyenne ${resumeGlycemie.moyenne} mg/dL   ·   Plus haute ${resumeGlycemie.plusHaute} mg/dL   ·   Plus basse ${resumeGlycemie.plusBasse} mg/dL`,
+      `Moyenne ${formaterNombreDepuisMgDl(resumeGlycemie.moyenne, uniteGlycemie)} ${uniteGlycemie}` +
+        `   ·   Plus haute ${formaterNombreDepuisMgDl(resumeGlycemie.plusHaute, uniteGlycemie)} ${uniteGlycemie}` +
+        `   ·   Plus basse ${formaterNombreDepuisMgDl(resumeGlycemie.plusBasse, uniteGlycemie)} ${uniteGlycemie}`,
       margeGauche,
       y,
     );

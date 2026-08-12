@@ -19,6 +19,7 @@ import {
   calculerResumeTension,
   preparerSeriesChronologiques,
 } from '../lib/statistiques.js';
+import { formaterNombreDepuisMgDl, lireUnitePreferee } from '../lib/uniteGlycemie.js';
 
 export default function TendancesPage() {
   const { getToken } = useAuth();
@@ -69,6 +70,7 @@ export default function TendancesPage() {
 
   const resumeTension = useMemo(() => calculerResumeTension(mesuresTension), [mesuresTension]);
   const resumeGlycemie = useMemo(() => calculerResumeGlycemie(mesuresGlycemie), [mesuresGlycemie]);
+  const uniteGlycemie = lireUnitePreferee();
 
   return (
     <main className="min-h-screen bg-paper px-4 pb-28 pt-6">
@@ -133,12 +135,12 @@ export default function TendancesPage() {
             <ResumeMetriques
               couleur="text-corail"
               items={[
-                { label: 'Moyenne', valeur: resumeGlycemie.moyenne, unite: 'mg/dL' },
-                { label: 'Plus haute', valeur: resumeGlycemie.plusHaute, unite: 'mg/dL' },
-                { label: 'Plus basse', valeur: resumeGlycemie.plusBasse, unite: 'mg/dL' },
+                { label: 'Moyenne', valeur: formaterNombreDepuisMgDl(resumeGlycemie.moyenne, uniteGlycemie), unite: uniteGlycemie },
+                { label: 'Plus haute', valeur: formaterNombreDepuisMgDl(resumeGlycemie.plusHaute, uniteGlycemie), unite: uniteGlycemie },
+                { label: 'Plus basse', valeur: formaterNombreDepuisMgDl(resumeGlycemie.plusBasse, uniteGlycemie), unite: uniteGlycemie },
               ]}
             />
-            <GraphiqueGlycemie donnees={mesuresGlycemie} />
+            <GraphiqueGlycemie donnees={mesuresGlycemie} unite={uniteGlycemie} />
           </section>
         )}
       </div>

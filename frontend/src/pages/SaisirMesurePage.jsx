@@ -16,9 +16,20 @@ import NoteField from '../components/saisie/NoteField.jsx';
 import DateHeureField, { versDatetimeLocal, depuisDatetimeLocal } from '../components/saisie/DateHeureField.jsx';
 import BoutonEnregistrer from '../components/saisie/BoutonEnregistrer.jsx';
 import MessageRetour from '../components/MessageRetour.jsx';
+import SelecteurSegments from '../components/SelecteurSegments.jsx';
 import { CONTEXTES_PAR_TYPE, validerMesure, estValide } from '../validation/mesureValidation.js';
 import { appelApi, SessionExpireeError } from '../lib/api.js';
 import { ajouterMesureEnAttente } from '../lib/mesuresHorsLigne.js';
+import {
+  UNITES_GLYCEMIE,
+  DECIMALES_PAR_UNITE,
+  convertirVersMgDl,
+  formaterNombreDepuisMgDl,
+  lireUnitePreferee,
+  ecrireUnitePreferee,
+} from '../lib/uniteGlycemie.js';
+
+const OPTIONS_UNITE_GLYCEMIE = UNITES_GLYCEMIE.map((unite) => ({ valeur: unite, label: unite }));
 
 function etatInitial() {
   return {
@@ -29,30 +40,46 @@ function etatInitial() {
     contexte: '',
     note: '',
     dateHeureTexte: versDatetimeLocal(new Date()),
+    uniteGlycemie: lireUnitePreferee(),
   };
 }
 
 function etatDepuisMesure(mesure) {
+  const uniteGlycemie = lireUnitePreferee();
   return {
     type: mesure.type,
-    valeur1: mesure.valeur1 != null ? String(mesure.valeur1) : '',
+    valeur1:
+      mesure.valeur1 == null
+        ? ''
+        : mesure.type === 'glycemie'
+          ? formaterNombreDepuisMgDl(mesure.valeur1, uniteGlycemie)
+          : String(mesure.valeur1),
     valeur2: mesure.valeur2 != null ? String(mesure.valeur2) : '',
     pouls: mesure.pouls != null ? String(mesure.pouls) : '',
     contexte: mesure.contexte,
     note: mesure.note ?? '',
     dateHeureTexte: versDatetimeLocal(new Date(mesure.dateHeure)),
+    uniteGlycemie,
   };
 }
 
 // Construit le corps JSON à envoyer à l'API (ou à mettre en file
 // d'attente) à partir de l'état brut du formulaire. Convertit les champs
 // texte en nombres/null comme attendu par la validation
-// (mesureValidation.js) et par l'API.
+// (mesureValidation.js) et par l'API. La glycémie est toujours envoyée en
+// mg/dL, arrondie à l'entier le plus proche (l'API n'accepte que des
+// entiers) quelle que soit l'unité choisie pour la saisie — voir
+// lib/uniteGlycemie.js.
 function versPayload(etat) {
   const estTension = etat.type === 'tension';
+  const estGlycemie = etat.type === 'glycemie';
+  let valeur1 = etat.valeur1 === '' ? null : Number(etat.valeur1);
+  if (estGlycemie && valeur1 != null) {
+    valeur1 = Math.round(convertirVersMgDl(valeur1, etat.uniteGlycemie));
+  }
   return {
     type: etat.type,
-    valeur1: etat.valeur1 === '' ? null : Number(etat.valeur1),
+    valeur1,
     valeur2: estTension && etat.valeur2 !== '' ? Number(etat.valeur2) : null,
     pouls: estTension && etat.pouls !== '' ? Number(etat.pouls) : null,
     contexte: etat.contexte,
@@ -136,11 +163,26 @@ export default function SaisirMesurePage() {
     setRetour(null);
   }
 
+  // Changer d'unité convertit la valeur déjà saisie plutôt que de la
+  // vider, et mémorise le choix pour les prochaines saisies/l'affichage
+  // (historique, tendances, export) sur cet appareil.
+  function changerUniteGlycemie(unite) {
+    setEtat((precedent) => ({
+      ...precedent,
+      uniteGlycemie: unite,
+      valeur1:
+        precedent.valeur1 === ''
+          ? ''
+          : formaterNombreDepuisMgDl(convertirVersMgDl(Number(precedent.valeur1), precedent.uniteGlycemie), unite),
+    }));
+    ecrireUnitePreferee(unite);
+  }
+
   async function gererEnvoi(e) {
     e.preventDefault();
 
     const payload = versPayload(etat);
-    const erreursValidation = validerMesure(payload);
+    const erreursValidation = validerMesure(payload, { uniteGlycemie: etat.uniteGlycemie });
     setErreurs(erreursValidation);
 
     if (!estValide(erreursValidation)) {
@@ -317,16 +359,24 @@ export default function SaisirMesurePage() {
               />
             </div>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-3">
               <NumericField
                 id="valeur1"
                 label="Glycémie"
-                unite="mg/dL"
+                unite={etat.uniteGlycemie}
+                decimales={DECIMALES_PAR_UNITE[etat.uniteGlycemie]}
                 value={etat.valeur1}
                 onChange={(v) => majChamp('valeur1', v)}
                 erreur={erreurs.valeur1}
                 autoFocus
               />
+              <div className="w-40">
+                <SelecteurSegments
+                  options={OPTIONS_UNITE_GLYCEMIE}
+                  valeur={etat.uniteGlycemie}
+                  onChange={changerUniteGlycemie}
+                />
+              </div>
             </div>
           )}
 

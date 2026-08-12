@@ -2,6 +2,7 @@
 // jour ("Aujourd'hui" / "Hier" / date complète), regroupement par jour,
 // et libellés lisibles pour les valeurs/contexte d'une mesure.
 import { CONTEXTES_PAR_TYPE } from '../validation/mesureValidation.js';
+import { formaterValeurGlycemie, lireUnitePreferee } from './uniteGlycemie.js';
 
 const FORMATEUR_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const FORMATEUR_JOUR = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -68,7 +69,7 @@ export function formatValeurs(mesure) {
     const pouls = mesure.pouls != null ? ` · ${mesure.pouls} bpm` : '';
     return `${mesure.valeur1}/${mesure.valeur2} mmHg${pouls}`;
   }
-  return `${mesure.valeur1} mg/dL`;
+  return formaterValeurGlycemie(mesure.valeur1, lireUnitePreferee());
 }
 
 export function tronquer(texte, longueurMax) {

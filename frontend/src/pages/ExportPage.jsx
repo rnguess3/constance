@@ -24,6 +24,7 @@ import {
 import { genererDocumentPdf, nomFichierExport } from '../lib/exportPdf.js';
 import { construireBlobCsv } from '../lib/exportCsv.js';
 import { telechargerBlob } from '../lib/telechargement.js';
+import { formaterNombreDepuisMgDl, lireUnitePreferee } from '../lib/uniteGlycemie.js';
 
 export default function ExportPage() {
   const { getToken } = useAuth();
@@ -79,6 +80,7 @@ export default function ExportPage() {
   );
   const resumeTension = useMemo(() => calculerResumeTension(mesuresTension), [mesuresTension]);
   const resumeGlycemie = useMemo(() => calculerResumeGlycemie(mesuresGlycemie), [mesuresGlycemie]);
+  const uniteGlycemie = lireUnitePreferee();
 
   const nomPatient = user?.fullName || user?.username || user?.primaryEmailAddress?.emailAddress || 'Patient';
   const { from, to } = calculerBornesPeriode(periode);
@@ -92,6 +94,7 @@ export default function ExportPage() {
       mesures: mesures ?? [],
       resumeTension,
       resumeGlycemie,
+      uniteGlycemie,
       svgTension: refSvgTension.current?.querySelector('.recharts-wrapper svg') ?? null,
       svgGlycemie: refSvgGlycemie.current?.querySelector('.recharts-wrapper svg') ?? null,
     });
@@ -204,13 +207,13 @@ export default function ExportPage() {
                 <ResumeMetriques
                   couleur="text-corail"
                   items={[
-                    { label: 'Moyenne', valeur: resumeGlycemie.moyenne, unite: 'mg/dL' },
-                    { label: 'Plus haute', valeur: resumeGlycemie.plusHaute, unite: 'mg/dL' },
-                    { label: 'Plus basse', valeur: resumeGlycemie.plusBasse, unite: 'mg/dL' },
+                    { label: 'Moyenne', valeur: formaterNombreDepuisMgDl(resumeGlycemie.moyenne, uniteGlycemie), unite: uniteGlycemie },
+                    { label: 'Plus haute', valeur: formaterNombreDepuisMgDl(resumeGlycemie.plusHaute, uniteGlycemie), unite: uniteGlycemie },
+                    { label: 'Plus basse', valeur: formaterNombreDepuisMgDl(resumeGlycemie.plusBasse, uniteGlycemie), unite: uniteGlycemie },
                   ]}
                 />
                 <div ref={refSvgGlycemie}>
-                  <GraphiqueGlycemie donnees={mesuresGlycemie} />
+                  <GraphiqueGlycemie donnees={mesuresGlycemie} unite={uniteGlycemie} />
                 </div>
               </section>
             )}

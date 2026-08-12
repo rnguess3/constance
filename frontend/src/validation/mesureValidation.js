@@ -1,3 +1,5 @@
+import { formaterNombreDepuisMgDl } from '../lib/uniteGlycemie.js';
+
 // Miroir, côté frontend, des règles définies dans
 // backend/src/validation/mesureSchemas.js.
 //
@@ -31,6 +33,9 @@ export const CONTEXTES_PAR_TYPE = {
 
 const BORNES = {
   tension: { valeur1: [40, 260], valeur2: [20, 200], pouls: [20, 250] },
+  // Toujours exprimées en mg/dL : c'est l'unité canonique envoyée à
+  // l'API (voir lib/uniteGlycemie.js), quelle que soit l'unité choisie
+  // par l'utilisateur pour la saisie/l'affichage.
   glycemie: { valeur1: [20, 600] },
 };
 
@@ -42,8 +47,11 @@ function estDansLesBornes(valeur, [min, max]) {
 
 // Valide une mesure et renvoie un objet d'erreurs par champ (vide si
 // tout est valide). `donnees` attend : type, valeur1, valeur2, pouls,
-// contexte, note, dateHeure (Date).
-export function validerMesure(donnees) {
+// contexte, note, dateHeure (Date) — valeur1 d'une glycémie est déjà
+// exprimée en mg/dL (conversion faite en amont, voir versPayload dans
+// SaisirMesurePage.jsx). `uniteGlycemie` ne sert qu'à afficher le message
+// d'erreur de borne dans l'unité que l'utilisateur a saisie.
+export function validerMesure(donnees, { uniteGlycemie = 'mg/dL' } = {}) {
   const erreurs = {};
   const { type, valeur1, valeur2, pouls, contexte, note, dateHeure } = donnees;
 
@@ -70,7 +78,8 @@ export function validerMesure(donnees) {
 
   if (type === 'glycemie') {
     if (valeur1 == null || !estDansLesBornes(valeur1, BORNES.glycemie.valeur1)) {
-      erreurs.valeur1 = `Doit être compris entre ${BORNES.glycemie.valeur1[0]} et ${BORNES.glycemie.valeur1[1]} mg/dL.`;
+      const [min, max] = BORNES.glycemie.valeur1;
+      erreurs.valeur1 = `Doit être compris entre ${formaterNombreDepuisMgDl(min, uniteGlycemie)} et ${formaterNombreDepuisMgDl(max, uniteGlycemie)} ${uniteGlycemie}.`;
     }
   }
 
