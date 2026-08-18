@@ -33,6 +33,8 @@ function messageErreurLisible(err) {
       return 'Ce mot de passe est trop courant/compromis. Choisis-en un autre.';
     case 'form_code_incorrect':
       return 'Code de vérification incorrect.';
+    case 'form_password_length_too_short':
+      return 'Le mot de passe doit contenir au moins 8 caractères.';
     default:
       return 'Une erreur est survenue. Réessaie dans un instant.';
   }
@@ -50,11 +52,14 @@ export default function ConnexionPage() {
 
   // "connexion" | "inscription" | "verification-inscription" (code après
   // inscription) | "verification-connexion" (code demandé en complément
-  // du mot de passe — voir gererConnexion)
+  // du mot de passe — voir gererConnexion) | "mot-de-passe-oublie" (saisie
+  // de l'email pour recevoir un code) | "reinitialisation" (code + nouveau
+  // mot de passe)
   const [mode, setMode] = useState('connexion');
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [code, setCode] = useState('');
+  const [nouveauMotDePasse, setNouveauMotDePasse] = useState('');
   const [erreur, setErreur] = useState('');
   const [chargement, setChargement] = useState(false);
 
@@ -120,6 +125,59 @@ export default function ConnexionPage() {
     }
   }
 
+  // Étape 1 du "mot de passe oublié" : on démarre un signIn avec la
+  // stratégie reset_password_email_code. Clerk envoie alors un code par
+  // email à l'adresse fournie (que ce compte existe ou non — on ne
+  // révèle jamais si l'email est inscrit, pour éviter l'énumération de
+  // comptes).
+  async function gererDemandeReinitialisation(e) {
+    e.preventDefault();
+    if (!signInPret) return;
+    setErreur('');
+    setChargement(true);
+    try {
+      await signIn.create({ identifier: email, strategy: 'reset_password_email_code' });
+      setMode('reinitialisation');
+    } catch (err) {
+      console.error('[Clerk]', err?.errors ?? err);
+      // Si l'email n'existe pas, Clerk répond aussi par une erreur ; pour
+      // ne pas révéler qu'un compte n'existe pas, on affiche le même
+      // message de succès et on avance quand même à l'étape suivante.
+      if (err?.errors?.[0]?.code === 'form_identifier_not_found') {
+        setMode('reinitialisation');
+      } else {
+        setErreur(messageErreurLisible(err));
+      }
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  // Étape 2 : le code reçu par email valide l'identité, puis le nouveau
+  // mot de passe est appliqué. En cas de succès, Clerk renvoie une
+  // session valide directement (pas besoin de se reconnecter).
+  async function gererReinitialisation(e) {
+    e.preventDefault();
+    if (!signInPret) return;
+    setErreur('');
+    setChargement(true);
+    try {
+      await signIn.attemptFirstFactor({ strategy: 'reset_password_email_code', code });
+      const resultat = await signIn.resetPassword({ password: nouveauMotDePasse });
+      if (resultat.status === 'complete') {
+        await activerSessionConnexion({ session: resultat.createdSessionId });
+        navigate('/', { replace: true });
+      } else {
+        setErreur('Étape supplémentaire requise, non gérée par cet écran.');
+      }
+    } catch (err) {
+      console.error('[Clerk]', err?.errors ?? err);
+      setErreur(messageErreurLisible(err));
+    } finally {
+      setChargement(false);
+    }
+  }
+
   async function gererInscription(e) {
     e.preventDefault();
     if (!signUpPret) return;
@@ -170,7 +228,25 @@ export default function ConnexionPage() {
       <h1 className="font-display text-4xl font-semibold text-teal">Constance</h1>
 
       <div className="w-full max-w-sm rounded-2xl bg-white/60 p-6 shadow-sm">
-        {mode !== 'verification-inscription' && mode !== 'verification-connexion' && (
+        {(mode === 'mot-de-passe-oublie' || mode === 'reinitialisation') && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('connexion');
+              setErreur('');
+              setCode('');
+              setNouveauMotDePasse('');
+            }}
+            className="mb-4 font-sans text-sm text-teal hover:underline"
+          >
+            ← Retour à la connexion
+          </button>
+        )}
+
+        {mode !== 'verification-inscription' &&
+          mode !== 'verification-connexion' &&
+          mode !== 'mot-de-passe-oublie' &&
+          mode !== 'reinitialisation' && (
           <div className="mb-6 flex gap-2 rounded-lg bg-neutral-100 p-1">
             <button
               type="button"
@@ -211,6 +287,16 @@ export default function ConnexionPage() {
               onChange={(e) => setMotDePasse(e.target.value)}
               className={classeChamp}
             />
+            <button
+              type="button"
+              onClick={() => {
+                setMode('mot-de-passe-oublie');
+                setErreur('');
+              }}
+              className="self-start font-sans text-sm text-teal hover:underline"
+            >
+              Mot de passe oublié ?
+            </button>
             {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
             <button type="submit" disabled={chargement} className={classeBouton}>
               {chargement ? 'Connexion…' : 'Se connecter'}
@@ -291,6 +377,58 @@ export default function ConnexionPage() {
             {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
             <button type="submit" disabled={chargement} className={classeBouton}>
               {chargement ? 'Vérification…' : 'Valider le code'}
+            </button>
+          </form>
+        )}
+
+        {mode === 'mot-de-passe-oublie' && (
+          <form onSubmit={gererDemandeReinitialisation} className="flex flex-col gap-4">
+            <p className="font-sans text-sm text-neutral-600">
+              Indique ton email : si un compte y est associé, tu recevras un code pour choisir un nouveau mot de
+              passe.
+            </p>
+            <input
+              type="email"
+              placeholder="Email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={classeChamp}
+            />
+            {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
+            <button type="submit" disabled={chargement} className={classeBouton}>
+              {chargement ? 'Envoi…' : 'Recevoir un code'}
+            </button>
+          </form>
+        )}
+
+        {mode === 'reinitialisation' && (
+          <form onSubmit={gererReinitialisation} className="flex flex-col gap-4">
+            <p className="font-sans text-sm text-neutral-600">
+              Un code de vérification a été envoyé à <strong>{email}</strong> (si un compte y est associé). Saisis-le
+              ci-dessous avec ton nouveau mot de passe.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Code à 6 chiffres"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={classeChamp}
+            />
+            <input
+              type="password"
+              placeholder="Nouveau mot de passe (8 caractères minimum)"
+              required
+              minLength={8}
+              value={nouveauMotDePasse}
+              onChange={(e) => setNouveauMotDePasse(e.target.value)}
+              className={classeChamp}
+            />
+            {erreur && <p className="font-sans text-sm text-corail">{erreur}</p>}
+            <button type="submit" disabled={chargement} className={classeBouton}>
+              {chargement ? 'Validation…' : 'Réinitialiser le mot de passe'}
             </button>
           </form>
         )}
